@@ -19,7 +19,7 @@ Still to come (per our plan): a request/response flow animation for an "architec
 - **MongoDB** via the official [`django-mongodb-backend`](https://www.mongodb.com/docs/languages/python/django-mongodb/current/) when `MONGO_URI` is set — falls back to SQLite for local dev if it isn't
 - Three.js (vendored locally as an ES module — no CDN dependency at runtime)
 - Vanilla JS (no frontend framework, to keep things approachable while learning)
-- Deployed on Vercel (see `vercel.json` / `build_files.sh`)
+- Deployed on Vercel using its zero-configuration Django support (no `vercel.json` needed)
 
 ## Database: MongoDB
 
@@ -108,8 +108,6 @@ portfolio/
 │   ├── settings.py                 # MONGO_URI-driven DB switch (Mongo / SQLite)
 │   ├── apps.py                     # MongoDB-flavored AppConfigs for contrib apps
 │   └── mongo_migrations/           # MongoDB-specific migrations for admin/auth/contenttypes
-├── vercel.json                    # Vercel deployment config
-└── build_files.sh                 # Vercel build script (install, collectstatic, migrate, seed)
 ```
 
 ## Design notes
@@ -120,12 +118,28 @@ portfolio/
 
 ## Deployment
 
-This project is configured for **Vercel**, using `vercel.json` + `build_files.sh`. On Vercel, set these environment variables in your project settings (not committed to the repo):
+This project deploys to **Vercel** using its [zero-configuration Django support](https://vercel.com/changelog/zero-configuration-django-support) — there's no `vercel.json` or build script. Vercel auto-detects Django via `manage.py`, finds the WSGI entrypoint from `WSGI_APPLICATION` in `settings.py`, and runs `collectstatic` automatically during the build (static files are served from the Vercel CDN; WhiteNoise is only active for local `vercel dev`).
 
-- `MONGO_URI` — your MongoDB connection string (required for production; without it the app falls back to SQLite, which won't persist on serverless platforms)
+**Environment variables** — set these in your Vercel project settings (Project → Settings → Environment Variables), not in the repo:
+
+- `MONGO_URI` — your MongoDB connection string (required for production; without it the app falls back to SQLite, which doesn't persist on serverless platforms)
 - `MONGO_DB_NAME` — optional, defaults to `portfolio`
-- `SECRET_KEY` — a production secret key (a dev default is used otherwise — fine for personal projects, but worth setting)
+- `SECRET_KEY` — a production secret key
 - `DEBUG` — set to `False` in production
-- `ALLOWED_HOSTS` — comma-separated list of allowed hosts (defaults to `.vercel.app,localhost,127.0.0.1`)
+- `ALLOWED_HOSTS` — comma-separated list (defaults to `.vercel.app,localhost,127.0.0.1`)
 
-Static files are served via [WhiteNoise](http://whitenoise.evans.io/), already wired into `MIDDLEWARE` and `STORAGES` in `settings.py`.
+**Migrations are not run automatically during the Vercel build** (this is a serverless platform — there's no persistent build step suited for database writes the way a traditional server has). Run them yourself, once, against the same database your deployment uses:
+
+```bash
+# Pull your Vercel project's environment variables locally
+vercel pull
+
+# Load them and run migrations against the same MONGO_URI Vercel uses
+export $(grep -v '^#' .env.local | xargs)
+python manage.py migrate
+python manage.py seed_resume
+```
+
+You only need to re-run `migrate`/`seed_resume` when your models or seed data change — not on every deploy.
+
+Connect your GitHub repo to Vercel (or run `vc deploy` from the CLI) and pushes to your default branch will deploy automatically.
