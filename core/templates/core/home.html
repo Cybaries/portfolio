@@ -1,0 +1,123 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block content %}
+
+<section class="hero" id="top">
+  <div class="hero-canvas-wrap" id="hero-canvas-wrap"></div>
+  <div class="container hero-inner">
+    <p class="hero-name">Aman Kant Jha</p>
+    <p class="hero-role">Backend Developer — Python · Node.js · Django</p>
+
+    <div class="terminal" id="terminal" role="application" aria-label="Interactive terminal navigation">
+      <div class="terminal-titlebar">
+        <span class="terminal-dot" style="background:#ff5f57"></span>
+        <span class="terminal-dot" style="background:#febc2e"></span>
+        <span class="terminal-dot" style="background:#28c840"></span>
+        <span class="title">aman@portfolio: ~</span>
+      </div>
+      <div class="terminal-body" id="terminal-body">
+        <div class="terminal-line"><span class="out">Welcome. Type <span class="out-link" data-cmd="help">help</span> to get started.</span></div>
+      </div>
+      <div class="terminal-input-row">
+        <span class="prompt">$</span>
+        <input type="text" class="terminal-input" id="terminal-input" autocomplete="off" spellcheck="false" aria-label="Terminal command input">
+      </div>
+    </div>
+    <p class="terminal-hint">try <span class="key">whoami</span> <span class="key">experience</span> <span class="key">projects</span> <span class="key">skills</span> <span class="key">contact</span> <span class="key">help</span></p>
+  </div>
+</section>
+
+<section id="experience">
+  <div class="container">
+    <p class="eyebrow">experience --log</p>
+    <h2>Where I've worked</h2>
+    {% for exp in experiences %}
+    <div class="exp-entry">
+      <div class="exp-dates">{{ exp.start_date }} — {{ exp.end_date }}<br><span style="color:var(--fg-faint)">{{ exp.location }}</span></div>
+      <div>
+        <div class="exp-role">{{ exp.role }}</div>
+        <div class="exp-company">{{ exp.company }}</div>
+        {% if exp.summary %}<p style="font-size:0.92rem;margin-bottom:var(--space-2)">{{ exp.summary }}</p>{% endif %}
+        {% for h in exp.highlights.all %}
+        <div class="exp-highlight">
+          <div class="exp-highlight-title">{{ h.title }}</div>
+          <p class="exp-highlight-desc">{{ h.description }}</p>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="projects">
+  <div class="container">
+    <p class="eyebrow">ls ~/projects</p>
+    <h2>Things I've built</h2>
+    <div class="project-grid">
+      {% for project in projects %}
+      <div class="project-card" data-tilt>
+        <div class="project-title">{{ project.title }}</div>
+        {% if project.tagline %}<div class="project-tagline">{{ project.tagline }}</div>{% endif %}
+        <div class="project-tech">
+          {% for tech in project.tech_list %}
+          <span class="tech-pill">{{ tech }}</span>
+          {% endfor %}
+        </div>
+        {% for h in project.highlights.all %}
+        <p class="project-highlight"><strong style="color:var(--fg)">{{ h.title }}:</strong> {{ h.description }}</p>
+        {% endfor %}
+        {% if project.github_url %}
+        <p style="margin-top:var(--space-2)"><a href="{{ project.github_url }}" target="_blank" rel="noopener">view source →</a></p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section id="skills">
+  <div class="container">
+    <p class="eyebrow">cat skills.json</p>
+    <h2>Stack</h2>
+    <div class="skills-graph-wrap" id="skills-graph-wrap">
+      <div class="skills-graph-label" id="skills-graph-label"></div>
+      <noscript>
+        <div class="skills-fallback-list">
+          {% for skill in skills %}<span class="skill-pill">{{ skill.name }}</span>{% endfor %}
+        </div>
+      </noscript>
+    </div>
+    <p class="skills-graph-hint">hover a node to see what it is · drag to rotate</p>
+    {{ skills_json|json_script:"skills-data" }}
+  </div>
+</section>
+
+<section id="contact">
+  <div class="container">
+    <p class="eyebrow">contact --info</p>
+    <h2>Get in touch</h2>
+    <p>
+      <a href="mailto:amanjha4753@gmail.com">amanjha4753@gmail.com</a> ·
+      <a href="tel:+918102490016">+91-8102490016</a> ·
+      <a href="https://github.com/Cybaries" target="_blank" rel="noopener">GitHub</a> ·
+      <a href="https://linkedin.com/in/amanjha4753" target="_blank" rel="noopener">LinkedIn</a>
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    built with Django + Three.js · © {% now "Y" %} Aman Kant Jha
+  </div>
+</footer>
+
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{% static 'js/hero-scene.js' %}"></script>
+<script type="module" src="{% static 'js/terminal.js' %}"></script>
+<script type="module" src="{% static 'js/card-tilt.js' %}"></script>
+<script type="module" src="{% static 'js/skills-graph.js' %}"></script>
+{% endblock %}
