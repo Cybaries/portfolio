@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,28 +21,55 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-uqetn1r-g8tu037z5pv6)#fwhgi!1pl61u97k9&!^$#m_twjj1'
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-uqetn1r-g8tu037z5pv6)#fwhgi!1pl61u97k9&!^$#m_twjj1',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = ['.vercel.app', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = [h for h in os.environ.get(
+    'ALLOWED_HOSTS', '.vercel.app,localhost,127.0.0.1'
+).split(',') if h]
+
+# Whether we're running against MongoDB. Set MONGO_URI to a full MongoDB
+# connection string to switch over, e.g.:
+#   mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+#
+# Read here (not just in DATABASES below) because it also determines which
+# contrib AppConfigs and the default auto-field setting we need, since
+# MongoDB documents use ObjectId as their primary key instead of an integer.
+MONGO_URI = os.environ.get('MONGO_URI')
 
 
 # Application definition
 
-INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'core',
-]
+if MONGO_URI:
+    INSTALLED_APPS = [
+        'portfolio_site.apps.MongoAdminConfig',
+        'portfolio_site.apps.MongoAuthConfig',
+        'portfolio_site.apps.MongoContentTypesConfig',
+        'django.contrib.sessions',
+        'django.contrib.messages',
+        'django.contrib.staticfiles',
+        'django_mongodb_backend',
+        'core',
+    ]
+else:
+    INSTALLED_APPS = [
+        'django.contrib.admin',
+        'django.contrib.auth',
+        'django.contrib.contenttypes',
+        'django.contrib.sessions',
+        'django.contrib.messages',
+        'django.contrib.staticfiles',
+        'core',
+    ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -72,13 +100,39 @@ WSGI_APPLICATION = 'portfolio_site.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+#
+# Uses MongoDB via the official django-mongodb-backend when MONGO_URI is set
+# in the environment. Falls back to SQLite for local development if it
+# isn't, so the project still runs out of the box without any setup.
+#
+# Set these environment variables to use MongoDB:
+#   MONGO_URI      - full connection string, e.g.
+#                     mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority
+#   MONGO_DB_NAME  - optional, database name (defaults to "portfolio")
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if MONGO_URI:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django_mongodb_backend',
+            'HOST': MONGO_URI,
+            'NAME': os.environ.get('MONGO_DB_NAME', 'portfolio'),
+        }
     }
-}
+    DATABASE_ROUTERS = ['django_mongodb_backend.routers.MongoRouter']
+    # Contrib apps (admin, auth, contenttypes) need their own MongoDB-specific
+    # migrations, separate from the default SQL-flavored ones shipped with Django.
+    MIGRATION_MODULES = {
+        'admin': 'portfolio_site.mongo_migrations.admin',
+        'auth': 'portfolio_site.mongo_migrations.auth',
+        'contenttypes': 'portfolio_site.mongo_migrations.contenttypes',
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
@@ -117,3 +171,22 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
+
+
+# Primary key field type
+# https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
+#
+# MongoDB documents use ObjectId as their primary key, so when MONGO_URI is
+# set, models default to django_mongodb_backend's ObjectIdAutoField instead
+# of Django's usual BigAutoField.
+
+if MONGO_URI:
+    DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'
+else:
+    DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

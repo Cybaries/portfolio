@@ -16,9 +16,36 @@ Still to come (per our plan): a request/response flow animation for an "architec
 ## Stack
 
 - Django 6 (templates, models, admin)
+- **MongoDB** via the official [`django-mongodb-backend`](https://www.mongodb.com/docs/languages/python/django-mongodb/current/) when `MONGO_URI` is set — falls back to SQLite for local dev if it isn't
 - Three.js (vendored locally as an ES module — no CDN dependency at runtime)
 - Vanilla JS (no frontend framework, to keep things approachable while learning)
-- SQLite (swap for Postgres in production if you like)
+- Deployed on Vercel (see `vercel.json` / `build_files.sh`)
+
+## Database: MongoDB
+
+This project uses MongoDB in production via the official `django-mongodb-backend`. It's driven entirely by environment variables — no connection string is committed to the repo.
+
+**Environment variables:**
+
+| Variable | Required | Description |
+|---|---|---|
+| `MONGO_URI` | for MongoDB | Full connection string, e.g. `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority` |
+| `MONGO_DB_NAME` | optional | Database name (defaults to `portfolio`) |
+
+If `MONGO_URI` is **not** set, the project automatically falls back to a local SQLite database — handy for quick local testing without needing a Mongo instance.
+
+**To run against MongoDB locally:**
+
+```bash
+export MONGO_URI="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority"
+python manage.py migrate
+python manage.py seed_resume
+python manage.py runserver
+```
+
+On Vercel (or any other host), set `MONGO_URI` as a project environment variable rather than exporting it locally — `build_files.sh` runs `migrate` and `seed_resume` automatically during deploy.
+
+**How the switch works under the hood:** MongoDB documents use `ObjectId` as their primary key instead of an auto-incrementing integer, so when `MONGO_URI` is set, `settings.py` swaps in MongoDB-flavored `AppConfig`s for `admin`/`auth`/`contenttypes` (see `portfolio_site/apps.py`) and MongoDB-specific migrations for those same contrib apps (see `portfolio_site/mongo_migrations/`). Our own `core` app models work unchanged either way.
 
 ## Running it locally
 
@@ -30,16 +57,20 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Run migrations
+# 3. (optional) point at MongoDB — see "Database: MongoDB" above.
+#    Skip this and the project uses SQLite instead.
+export MONGO_URI="mongodb+srv://..."
+
+# 4. Run migrations
 python manage.py migrate
 
-# 4. Seed your resume content
+# 5. Seed your resume content
 python manage.py seed_resume
 
-# 5. (optional) create an admin user to edit content via /admin
+# 6. (optional) create an admin user to edit content via /admin
 python manage.py createsuperuser
 
-# 6. Run the dev server
+# 7. Run the dev server
 python manage.py runserver
 ```
 
@@ -71,8 +102,14 @@ portfolio/
 │       ├── hero-scene.js          # Three.js node-graph background
 │       ├── terminal.js            # terminal command parser/UI
 │       ├── card-tilt.js           # 3D hover tilt for project cards
+│       ├── skills-graph.js        # Three.js skills node graph
 │       └── vendor/three.module.min.js
-└── portfolio_site/                # Django project settings/urls
+├── portfolio_site/                # Django project settings/urls
+│   ├── settings.py                 # MONGO_URI-driven DB switch (Mongo / SQLite)
+│   ├── apps.py                     # MongoDB-flavored AppConfigs for contrib apps
+│   └── mongo_migrations/           # MongoDB-specific migrations for admin/auth/contenttypes
+├── vercel.json                    # Vercel deployment config
+└── build_files.sh                 # Vercel build script (install, collectstatic, migrate, seed)
 ```
 
 ## Design notes
@@ -83,8 +120,12 @@ portfolio/
 
 ## Deployment
 
-This is dev-only right now (`DEBUG = True`, SQLite, no `ALLOWED_HOSTS`). Before deploying:
-- Set `DEBUG = False` and configure `ALLOWED_HOSTS`
-- Move `SECRET_KEY` to an environment variable
-- Run `python manage.py collectstatic` and serve static files via whitenoise or a CDN
-- Consider Postgres if you want the admin to be production-grade
+This project is configured for **Vercel**, using `vercel.json` + `build_files.sh`. On Vercel, set these environment variables in your project settings (not committed to the repo):
+
+- `MONGO_URI` — your MongoDB connection string (required for production; without it the app falls back to SQLite, which won't persist on serverless platforms)
+- `MONGO_DB_NAME` — optional, defaults to `portfolio`
+- `SECRET_KEY` — a production secret key (a dev default is used otherwise — fine for personal projects, but worth setting)
+- `DEBUG` — set to `False` in production
+- `ALLOWED_HOSTS` — comma-separated list of allowed hosts (defaults to `.vercel.app,localhost,127.0.0.1`)
+
+Static files are served via [WhiteNoise](http://whitenoise.evans.io/), already wired into `MIDDLEWARE` and `STORAGES` in `settings.py`.
